@@ -1,6 +1,6 @@
 /**
  * Copyright (c) Inpyo Lee
- * last updated 26.01.23
+ * last updated 26.01.24
  * 파일 기능: 
  * IMU 센서 드라이버 소스 코드
  */
