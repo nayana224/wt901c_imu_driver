@@ -1,40 +1,26 @@
 # WT901C ROS2 Humble Driver
 
-## 1. Introduction
+ROS2 Humble Driver for WitMotion WT901C IMU Sensor.
 
-This package is a dedicated ROS2 Humble driver for the **WitMotion WT901C IMU sensor**. It parses raw 16-bit serial data into standard ROS2 messages, providing high-precision orientation, acceleration, and angular velocity for robotic applications.
+## 1. Prerequisites
 
-## 2. Technical Specifications
-
-### 2.1 ROS2 API (Nodes & Interfaces)
-
-| Interface     | Name        | Type                            | Description                                                |
-| :------------ | :---------- | :------------------------------ | :--------------------------------------------------------- |
-| **Topic**     | `/imu/data` | `sensor_msgs/msg/Imu`           | Fused orientation (Quaternion) and inertial data.          |
-| **Topic**     | `/imu/mag`  | `sensor_msgs/msg/MagneticField` | Raw 3-axis magnetic field strength.                        |
-| **Parameter** | `port_name` | `string`                        | Serial device path (Default: `/dev/ttyUSB0`).              |
-| **Parameter** | `baudrate`  | `int`                           | Communication speed (Default: `115200`).                   |
-| **Parameter** | `frame_id`  | `string`                        | TF frame associated with the sensor (Default: `imu_link`). |
-
-### 2.2 Hardware Setup
-
-- **Communication**: UART (TTL Level)
-- **Baudrate**: Supported up to 115200 bps.
-- **Update Rate**: Up to 200Hz.
-
-## 3. Installation & Build
-
-### Prerequisites
-
-Ensure you have a ROS2 Humble environment and the `serial` library installed.
+- ROS2 Humble
+- [serial](https://github.com/wjwwood/serial) library
 
 ```bash
-# Update and install dependencies
+# Install dependencies
 sudo apt update
 sudo apt install ros-humble-serial-driver
 ```
 
-### Build Instructions
+## 2. Hardware Setup
+
+- ​**Interface**​: UART (TTL Level)
+- ​**Default Baudrate**​: 115200
+- ​**Default Port**​: `/dev/ttyUSB0`
+- ​**Pinout**​: VCC (3.3-5V), GND, TX, RX
+
+## 3. Installation
 
 ```
 cd ~/ros2_ws/src
@@ -46,8 +32,29 @@ source install/setup.bash
 
 ## 4. Usage
 
-To launch the driver with default parameters:
+```
+# Ensure serial permission
+sudo chmod 666 /dev/ttyUSB0
 
+# Run the driver
+ros2 run wt901c_driver imu_driver
 ```
-ros2 launch wt901c_driver wt901c_launch.py
-```
+
+## 5. ROS2 API
+
+### Published Topics
+
+- `/imu/data` (`sensor_msgs/msg/Imu`): Fused orientation, angular velocity, and linear acceleration.
+
+### Services
+
+- `calibrate_imu` (`std_srvs/srv/Empty`): Initiates acceleration and gyroscope zero-point calibration.
+
+### TF
+
+- `world` -> `imu_link`: Real-time orientation broadcast.
+
+### Parameters (Hardcoded in Source)
+
+- Port: `/dev/ttyUSB0`
+- Baudrate: 115200
