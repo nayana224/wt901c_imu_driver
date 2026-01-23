@@ -18,6 +18,15 @@ IMUDriver::IMUDriver()
   timer_ = this->create_wall_timer(
     std::chrono::milliseconds(1), std::bind(&IMUDriver::process_serial, this)
   );
+
+// TF Broadcaster
+  tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+
+// Service
+  calib_srv_ = this->create_service<std_srvs::srv::Empty>(
+    "calibrate_imu",
+    std::bind(&IMUDriver::handle_calibration, this, std::placeholders::_1, std::placeholders::_2)
+  );
 }
 
 
@@ -101,7 +110,7 @@ void IMUDriver::parse_and_publish_imu_data(const std::vector<uint8_t>& payload)
   {
     double roll = combine_bytes(payload[1], payload[2]) / 32768.0 * M_PI;
     double pitch = combine_bytes(payload[3], payload[4]) / 32768.0 * M_PI;
-    double yaw = combine_bytes(payload[3], payload[4]) / 32768.0 * M_PI;
+    double yaw = combine_bytes(payload[5], payload[6]) / 32768.0 * M_PI;
 
     tf2::Quaternion q;
     q.setRPY(roll, pitch, yaw);
@@ -112,21 +121,78 @@ void IMUDriver::parse_and_publish_imu_data(const std::vector<uint8_t>& payload)
 
     // msg Publish
     imu_pub_->publish(imu_msgs_);
+
+  // RViz2 시각화
+    geometry_msgs::msg::TransformStamped t;
+    t.header.stamp = imu_msgs_.header.stamp;
+    t.header.frame_id = "world";
+    t.child_frame_id = "imu_link";
+
+    t.transform.translation.x = 0.0;
+    t.transform.translation.y = 0.0;
+    t.transform.translation.z = 0.0;
+    t.transform.rotation = imu_msgs_.orientation;
+
+    tf_broadcaster_->sendTransform(t);
   }
 }
 
 // WT901C 레지스터 제어를 위한 공통 명령 전송 함수
 void IMUDriver::send_command(uint8_t reg, uint8_t low, uint8_t high)
 {
+  if (!serial_ptr_ || !serial_ptr_->isOpen())
+  {
+    RCLCPP_ERROR(this->get_logger(), "Serial port is not open.");
+    return;
+  }
 
+  std::vector<uint8_t> cmd_packet = {0xFF, 0xAA, reg, low, high};
+  serial_ptr_->write(cmd_packet);
+
+  // delay
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
+
 
 // 가속도 및 자이로스코프 영점 보정 수행
 void IMUDriver::calibrate_sensor()
 {
+  RCLCPP_INFO(this->get_logger(), "Starting IMU Calibration... Keep the sensor horizontal and still.");
+  
+  // 레지스터 쓰기 잠금 해제
+  send_command(0x69, 0x88, 0xB5);
 
+  // 가속도/자이로 보정 실행
+  // 1: 가속도 및 자이로 보정 시작
+  send_command(0x01, 0x01, 0x00);
+
+  // delay
+  std::this_thread::sleep_for(std::chrono::seconds(5));
+
+  send_command(0x00, 0x00, 0x00);
+
+  RCLCPP_INFO(this->get_logger(), "Calibration completed and saved.");
 }
 
+
+// 레지스터 설정 서비스 콜백 함수 선언
+void IMUDriver::handle_calibration(
+  const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+  std::shared_ptr<std_srvs::srv::Empty::Response> response
+)
+{
+  RCLCPP_INFO(this->get_logger(), "Service requested: Starting IMU Calibration...");
+
+  // 타이머 일시 정지 (데이터 파싱과 명령어 송신 간의 충돌 방지)
+  timer_->cancel();
+
+  this->calibrate_sensor();
+
+  // 타이머 재개
+  timer_->reset();
+
+  RCLCPP_INFO(this->get_logger(), "IMU Calibration process finished successfully.");
+}
 
 
 
