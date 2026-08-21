@@ -39,10 +39,17 @@ Wt901cDriver::Wt901cDriver()
   magnetic_field_pub_ = create_publisher<sensor_msgs::msg::MagneticField>(
     "imu/mag", sensor_qos);
 
-  calibration_srv_ = create_service<std_srvs::srv::Empty>(
+  legacy_calibration_srv_ = create_service<std_srvs::srv::Empty>(
     "calibrate_imu",
     std::bind(
-      &Wt901cDriver::handle_calibration,
+      &Wt901cDriver::handle_legacy_calibration,
+      this,
+      std::placeholders::_1,
+      std::placeholders::_2));
+  calibration_trigger_srv_ = create_service<std_srvs::srv::Trigger>(
+    "calibrate_accelerometer",
+    std::bind(
+      &Wt901cDriver::handle_calibration_trigger,
       this,
       std::placeholders::_1,
       std::placeholders::_2));
@@ -157,8 +164,8 @@ void Wt901cDriver::initialize_covariances()
 
 void Wt901cDriver::poll_serial()
 {
-  const auto now = std::chrono::steady_clock::now();
-  if (calibration_in_progress_ && now >= calibration_finish_time_) {
+  const auto steady_now = std::chrono::steady_clock::now();
+  if (calibration_in_progress_ && steady_now >= calibration_finish_time_) {
     finish_accelerometer_calibration();
   }
 
@@ -176,11 +183,11 @@ void Wt901cDriver::poll_serial()
 
 bool Wt901cDriver::try_connect_serial()
 {
-  const auto now = std::chrono::steady_clock::now();
-  if (now < next_reconnect_attempt_) {
+  const auto steady_now = std::chrono::steady_clock::now();
+  if (steady_now < next_reconnect_attempt_) {
     return false;
   }
-  next_reconnect_attempt_ = now + std::chrono::milliseconds(reconnect_interval_ms_);
+  next_reconnect_attempt_ = steady_now + std::chrono::milliseconds(reconnect_interval_ms_);
 
   try {
     auto serial = std::make_unique<serial::Serial>(
@@ -448,7 +455,7 @@ bool Wt901cDriver::send_command(uint8_t reg, uint8_t low, uint8_t high)
     return false;
   }
 
-  // WIT register writes are separated to avoid back-to-back command loss on the device.
+  // 장치가 연속 register write를 놓치지 않도록 명령 사이에 짧은 간격을 둔다.
   std::this_thread::sleep_for(kCommandDelay);
   return true;
 }
@@ -514,7 +521,7 @@ void Wt901cDriver::abort_calibration(const std::string & reason)
   RCLCPP_ERROR(get_logger(), "WT901C calibration aborted: %s", reason.c_str());
 }
 
-void Wt901cDriver::handle_calibration(
+void Wt901cDriver::handle_legacy_calibration(
   const std::shared_ptr<std_srvs::srv::Empty::Request> request,
   std::shared_ptr<std_srvs::srv::Empty::Response> response)
 {
@@ -524,7 +531,27 @@ void Wt901cDriver::handle_calibration(
   if (!start_accelerometer_calibration()) {
     RCLCPP_ERROR(
       get_logger(),
-      "calibrate_imu request could not be started. Check the serial connection and current calibration state.");
+      "calibrate_imu request could not be started. Use calibrate_accelerometer for an explicit result.");
+  }
+}
+
+void Wt901cDriver::handle_calibration_trigger(
+  const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+{
+  (void)request;
+
+  response->success = start_accelerometer_calibration();
+  if (response->success) {
+    response->message =
+      "Accelerometer calibration started. Keep the WT901C horizontal and still until completion is logged.";
+    return;
+  }
+
+  if (calibration_in_progress_) {
+    response->message = "Accelerometer calibration is already running.";
+  } else {
+    response->message = "Calibration could not start. Check the WT901C serial connection.";
   }
 }
 
