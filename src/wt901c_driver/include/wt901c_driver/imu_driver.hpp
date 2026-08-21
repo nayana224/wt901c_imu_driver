@@ -1,6 +1,7 @@
 #ifndef WT901C_DRIVER__IMU_DRIVER_HPP_
 #define WT901C_DRIVER__IMU_DRIVER_HPP_
 
+#include <array>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -57,6 +58,7 @@ private:
 
   std::string port_;
   std::string frame_id_;
+  std::string orientation_source_;
   int baudrate_{115200};
   int poll_interval_ms_{2};
   int serial_timeout_ms_{20};
@@ -64,6 +66,7 @@ private:
   double calibration_duration_seconds_{5.0};
   double yaw_offset_rad_{0.0};
   double magnetic_tesla_per_lsb_{protocol::kDefaultMagneticTeslaPerLsb};
+  double temperature_variance_{0.0};
   std::vector<double> linear_acceleration_covariance_diagonal_;
   std::vector<double> angular_velocity_covariance_diagonal_;
   std::vector<double> orientation_covariance_diagonal_;
@@ -75,7 +78,6 @@ private:
 
   sensor_msgs::msg::Imu imu_msg_;
   sensor_msgs::msg::MagneticField magnetic_field_msg_;
-  rclcpp::Time sample_stamp_{0, 0, RCL_SYSTEM_TIME};
   bool sample_active_{false};
   bool have_acceleration_{false};
   bool have_angular_velocity_{false};
