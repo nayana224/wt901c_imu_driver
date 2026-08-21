@@ -1,29 +1,44 @@
-import os
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    # 패키지 경로 설정
-    pkg_share_path = get_package_share_directory("imu_bringup")  # 패키지명 확인 필요
+    config_file = LaunchConfiguration("config_file")
+    port = LaunchConfiguration("port")
+    baudrate = LaunchConfiguration("baudrate")
+    frame_id = LaunchConfiguration("frame_id")
+    imu_topic = LaunchConfiguration("imu_topic")
 
     return LaunchDescription(
         [
-            # IMU 드라이버 노드 (SLAM/Nav2 연동용)
+            DeclareLaunchArgument(
+                "config_file",
+                default_value=PathJoinSubstitution(
+                    [FindPackageShare("imu_bringup"), "config", "wt901c.yaml"]
+                ),
+            ),
+            DeclareLaunchArgument("port", default_value="/dev/ttyUSB0"),
+            DeclareLaunchArgument("baudrate", default_value="115200"),
+            DeclareLaunchArgument("frame_id", default_value="imu_link"),
+            DeclareLaunchArgument("imu_topic", default_value="imu/data"),
             Node(
-                package="imu_bringup",
+                package="wt901c_driver",
                 executable="imu_driver",
-                name="imu_driver_node",
+                name="imu_driver",
                 output="screen",
                 parameters=[
+                    config_file,
                     {
-                        "port": "/dev/ttyUSB0",
-                        "baudrate": 115200,
-                    }
+                        "port": port,
+                        "baudrate": ParameterValue(baudrate, value_type=int),
+                        "frame_id": frame_id,
+                    },
                 ],
-                # SLAM 연동 시 안정성을 위해 토픽 리매핑 가능
-                remappings=[("/imu/data", "/imu/data_raw")],
+                remappings=[("imu/data", imu_topic)],
             ),
         ]
     )
