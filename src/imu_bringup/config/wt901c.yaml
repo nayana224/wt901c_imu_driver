@@ -1,0 +1,25 @@
+imu_driver:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    baudrate: 115200
+    frame_id: imu_link
+
+    # 기본 출력에는 0x53 angle packet이 포함된다. quaternion은 장치에서 0x59 출력을
+    # 활성화한 경우에만 사용한다.
+    orientation_source: angle
+    yaw_offset_rad: 0.0
+
+    poll_interval_ms: 2
+    serial_timeout_ms: 20
+    reconnect_interval_ms: 1000
+    calibration_duration_seconds: 5.0
+
+    # WT901C 사양 기준 약 0.0667 mGauss/LSB = 6.67e-9 Tesla/LSB이다.
+    magnetic_tesla_per_lsb: 6.67e-9
+    temperature_variance: 0.0
+
+    # covariance 0은 unknown을 의미한다. sensor fusion에는 실측 variance를 사용한다.
+    linear_acceleration_covariance_diagonal: [0.0, 0.0, 0.0]
+    angular_velocity_covariance_diagonal: [0.0, 0.0, 0.0]
+    orientation_covariance_diagonal: [0.0, 0.0, 0.0]
+    magnetic_field_covariance_diagonal: [0.0, 0.0, 0.0]
