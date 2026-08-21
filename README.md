@@ -11,25 +11,28 @@ The driver validates and resynchronizes the WT901C 11-byte stream, converts sens
 - WT901C TTL/UART
 - Default example: `/dev/ttyUSB0`, 115200 baud
 
-The implementation uses the ROS 2 compatible `serial` package that provides `serial/serial.h` and `serialConfig.cmake`. This is **not** the same API as ROS 2 `serial_driver`.
+The implementation uses the ROS 2 compatible `serial` package that provides `serial/serial.h` and the CMake package name `serial`. This is **not** the same API as ROS 2 `serial_driver`.
 
-One compatible source package is:
-
-```bash
-cd ~/ros2_ws/src
-git clone https://github.com/RoverRobotics-forks/serial-ros2.git serial
-```
+A compatible dependency revision is pinned in [`dependencies.repos`](dependencies.repos).
 
 ## Workspace setup
 
 ```bash
+mkdir -p ~/ros2_ws/src
 cd ~/ros2_ws/src
 git clone https://github.com/nayana224/wt901c_imu_driver.git
 cd ..
 
+vcs import src < src/wt901c_imu_driver/dependencies.repos
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install --packages-up-to imu_bringup
 source install/setup.bash
+```
+
+If `vcs` is unavailable:
+
+```bash
+sudo apt install python3-vcstool
 ```
 
 For serial access, prefer the `dialout` group instead of making the device world-writable:
@@ -75,15 +78,24 @@ ros2 run wt901c_driver imu_driver --ros-args \
 | `imu/temperature` | `sensor_msgs/msg/Temperature` | Sensor temperature from the `0x51` packet |
 | `imu/mag` | `sensor_msgs/msg/MagneticField` | Magnetic field converted to Tesla |
 
-The publisher uses `rclcpp::SensorDataQoS`.
+The publishers use `rclcpp::SensorDataQoS`.
 
-### Service
+### Services
 
 | Service | Type | Meaning |
 | --- | --- | --- |
-| `calibrate_imu` | `std_srvs/srv/Empty` | Starts WT901C accelerometer calibration |
+| `calibrate_accelerometer` | `std_srvs/srv/Trigger` | Recommended API. Starts calibration and reports whether it could start |
+| `calibrate_imu` | `std_srvs/srv/Empty` | Legacy-compatible calibration API |
 
-Calibration is asynchronous. The service callback returns immediately; keep the sensor horizontal and completely still until the node logs that calibration has completed and the configuration has been saved.
+Calibration is asynchronous. A successful service response means the calibration sequence started; keep the sensor horizontal and completely still until the node logs that calibration completed and the configuration was saved.
+
+Recommended call:
+
+```bash
+ros2 service call /calibrate_accelerometer std_srvs/srv/Trigger "{}"
+```
+
+Legacy-compatible call:
 
 ```bash
 ros2 service call /calibrate_imu std_srvs/srv/Empty "{}"
@@ -208,6 +220,7 @@ This allows unplug/replug recovery without restarting the ROS 2 process, assumin
 ## Package structure
 
 ```text
+dependencies.repos
 src/
 ├── wt901c_driver/
 │   ├── include/wt901c_driver/
@@ -251,7 +264,7 @@ Then check:
 - stationary acceleration magnitude is approximately `9.81 m/s^2`,
 - rotation sign follows the physical sensor axes,
 - unplug/replug recovers automatically,
-- calibration completes without blocking the ROS executor,
+- calibration completes without blocking the executor for the full calibration duration,
 - `frame_id` matches the robot URDF/static TF.
 
 ## Reference manuals
@@ -261,4 +274,4 @@ The repository contains the vendor documents used for protocol verification:
 - `WIT Standard Communication Protocol.pdf`
 - `WT901C TTL Manual.pdf`
 
-The source also follows ROS SI-unit and body-frame conventions; global heading alignment should be validated for the actual robot and localization setup.
+The source follows ROS SI-unit and body-frame conventions; global heading alignment should be validated for the actual robot and localization setup.
