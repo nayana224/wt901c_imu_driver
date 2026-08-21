@@ -13,6 +13,7 @@
 #include "sensor_msgs/msg/temperature.hpp"
 #include "serial/serial.h"
 #include "std_srvs/srv/empty.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 #include "wt901c_driver/protocol.hpp"
 
@@ -48,9 +49,12 @@ private:
   bool start_accelerometer_calibration();
   void finish_accelerometer_calibration();
   void abort_calibration(const std::string & reason);
-  void handle_calibration(
+  void handle_legacy_calibration(
     const std::shared_ptr<std_srvs::srv::Empty::Request> request,
     std::shared_ptr<std_srvs::srv::Empty::Response> response);
+  void handle_calibration_trigger(
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
   static void set_covariance_diagonal(
     std::array<double, 9> & covariance,
@@ -88,7 +92,8 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Temperature>::SharedPtr temperature_pub_;
   rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr magnetic_field_pub_;
-  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr calibration_srv_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr legacy_calibration_srv_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr calibration_trigger_srv_;
   rclcpp::TimerBase::SharedPtr poll_timer_;
 };
 
