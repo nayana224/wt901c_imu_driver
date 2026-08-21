@@ -1,85 +1,95 @@
-/**
- * Copyright (c) Inpyo Lee
- * last updated 26.01.24
- * 파일 기능: 
- * IMU 센서 드라이버 헤더 파일
- */
+#ifndef WT901C_DRIVER__IMU_DRIVER_HPP_
+#define WT901C_DRIVER__IMU_DRIVER_HPP_
 
-#ifndef IMU_DRIVER_HPP
-#define IMU_DRIVER_HPP
-
+#include <chrono>
 #include <memory>
+#include <string>
 #include <vector>
-#include <thread>
 
 #include "rclcpp/rclcpp.hpp"
-#include "serial/serial.h"
 #include "sensor_msgs/msg/imu.hpp"
-#include "tf2/LinearMath/Quaternion.h"
+#include "sensor_msgs/msg/magnetic_field.hpp"
+#include "sensor_msgs/msg/temperature.hpp"
+#include "serial/serial.h"
 #include "std_srvs/srv/empty.hpp"
-#include "tf2_ros/transform_broadcaster.h"
-#include "geometry_msgs/msg/transform_stamped.hpp"
 
+#include "wt901c_driver/protocol.hpp"
 
-class IMUDriver
-: public rclcpp::Node
+namespace wt901c_driver
+{
+
+class Wt901cDriver : public rclcpp::Node
 {
 public:
-  IMUDriver();
+  Wt901cDriver();
+  ~Wt901cDriver() override;
 
 private:
-// 멤버 변수
-  std::unique_ptr<serial::Serial> serial_ptr_;
-  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
-  rclcpp::TimerBase::SharedPtr timer_;
-  sensor_msgs::msg::Imu imu_msgs_;
-  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr calib_srv_;
-  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+  void load_parameters();
+  void validate_parameters() const;
+  void initialize_covariances();
 
-  /**
-   * @brief 버퍼 확인 콜백함수
-   */
-  void process_serial();
+  void poll_serial();
+  bool try_connect_serial();
+  void disconnect_serial(const std::string & reason);
+  bool read_available_bytes();
+  void process_rx_buffer();
+  void handle_frame(const protocol::Frame & frame);
+  void reset_sample_cycle();
 
+  void update_orientation_from_euler(const protocol::Frame & frame);
+  void update_orientation_from_quaternion(const protocol::Frame & frame);
+  void publish_imu_if_complete();
+  void publish_temperature(const protocol::Frame & frame);
+  void publish_magnetic_field(const protocol::Frame & frame);
 
-  /**
-   * @brief 데이터 값을 받아 Publish
-   */
-  void parse_and_publish_imu_data(const std::vector<uint8_t>& payload);
-
-
-  /**
-   * @brief WT901C 레지스터 제어를 위한 공통 명령 전송 함수
-   * @param reg 레지스터 주소 (Byte 2)
-   * @param low 데이터 하위 바이트 (Byte 3)
-   * @param high 데이터 상위 바이트 (Byte 4)
-   */
-  void send_command(uint8_t reg, uint8_t low, uint8_t high);
-
-    
-  /**
-   * @brief 가속도 및 자이로스코프 영점 보정 수행
-   * @details Unlock -> Calibration Start -> Save 순서로 진행
-   */
-  void calibrate_sensor();
-
-  /**
-   * @brief 레지스터 설정 서비스 콜백 함수 선언
-   */
+  bool send_command(uint8_t reg, uint8_t low, uint8_t high);
+  bool start_accelerometer_calibration();
+  void finish_accelerometer_calibration();
+  void abort_calibration(const std::string & reason);
   void handle_calibration(
     const std::shared_ptr<std_srvs::srv::Empty::Request> request,
-    std::shared_ptr<std_srvs::srv::Empty::Response> response
-  );
+    std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
-  /**
- * @brief IMU 메시지의 공분산 행렬 초기화
- * @details SLAM/Nav2 연동을 위해 센서 특성에 맞는 노이즈 값을 설정합니다.
- */
-  void initialize_covariance();
+  static void set_covariance_diagonal(
+    std::array<double, 9> & covariance,
+    const std::vector<double> & diagonal);
 
+  std::string port_;
+  std::string frame_id_;
+  int baudrate_{115200};
+  int poll_interval_ms_{2};
+  int serial_timeout_ms_{20};
+  int reconnect_interval_ms_{1000};
+  double calibration_duration_seconds_{5.0};
+  double yaw_offset_rad_{0.0};
+  double magnetic_tesla_per_lsb_{protocol::kDefaultMagneticTeslaPerLsb};
+  std::vector<double> linear_acceleration_covariance_diagonal_;
+  std::vector<double> angular_velocity_covariance_diagonal_;
+  std::vector<double> orientation_covariance_diagonal_;
+  std::vector<double> magnetic_field_covariance_diagonal_;
 
+  std::unique_ptr<serial::Serial> serial_ptr_;
+  std::vector<uint8_t> rx_buffer_;
+  std::chrono::steady_clock::time_point next_reconnect_attempt_{};
+
+  sensor_msgs::msg::Imu imu_msg_;
+  sensor_msgs::msg::MagneticField magnetic_field_msg_;
+  rclcpp::Time sample_stamp_{0, 0, RCL_SYSTEM_TIME};
+  bool sample_active_{false};
+  bool have_acceleration_{false};
+  bool have_angular_velocity_{false};
+
+  bool calibration_in_progress_{false};
+  std::chrono::steady_clock::time_point calibration_finish_time_{};
+
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Temperature>::SharedPtr temperature_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr magnetic_field_pub_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr calibration_srv_;
+  rclcpp::TimerBase::SharedPtr poll_timer_;
 };
 
+}  // namespace wt901c_driver
 
-
-#endif
+#endif  // WT901C_DRIVER__IMU_DRIVER_HPP_
