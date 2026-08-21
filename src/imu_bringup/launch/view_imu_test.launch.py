@@ -1,29 +1,60 @@
-import os
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
-from launch.actions import ExecuteProcess
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    port = LaunchConfiguration("port")
+    baudrate = LaunchConfiguration("baudrate")
+    frame_id = LaunchConfiguration("frame_id")
+    parent_frame = LaunchConfiguration("parent_frame")
+
+    driver_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [FindPackageShare("imu_bringup"), "launch", "imu_bringup.launch.py"]
+            )
+        ),
+        launch_arguments={
+            "port": port,
+            "baudrate": baudrate,
+            "frame_id": frame_id,
+        }.items(),
+    )
+
     return LaunchDescription(
         [
-            # 1. IMU 드라이버 실행 (파라미터 주입)
-            Node(
-                package="wt901c_driver",
-                executable="imu_driver",
-                name="imu_test_node",
-                output="screen",
-                parameters=[{"port": "/dev/ttyUSB0", "baudrate": 115200}],
-            ),
-            # 2. 테스트용 가상 좌표계 설정 (world -> imu_link)
-            # 센서가 세계의 중심에 있다고 가정하여 시각화 정렬
+            DeclareLaunchArgument("port", default_value="/dev/ttyUSB0"),
+            DeclareLaunchArgument("baudrate", default_value="115200"),
+            DeclareLaunchArgument("frame_id", default_value="imu_link"),
+            DeclareLaunchArgument("parent_frame", default_value="world"),
+            driver_launch,
+            # Bench visualization only. Production robots should provide base_link -> imu_link
+            # from URDF or their own static transform instead of using this world frame.
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
-                name="test_static_tf",
-                arguments=["0", "0", "0", "0", "0", "0", "world", "imu_link"],
+                name="imu_test_static_tf",
+                arguments=[
+                    "0",
+                    "0",
+                    "0",
+                    "0",
+                    "0",
+                    "0",
+                    parent_frame,
+                    frame_id,
+                ],
+                output="screen",
             ),
-            # 3. RViz2 자동 실행
-            ExecuteProcess(cmd=["rviz2"], output="screen"),
+            Node(
+                package="rviz2",
+                executable="rviz2",
+                name="rviz2",
+                output="screen",
+            ),
         ]
     )
