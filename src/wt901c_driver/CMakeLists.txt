@@ -40,7 +40,17 @@ ament_target_dependencies(imu_driver
   tf2
 )
 
-install(TARGETS imu_driver
+add_executable(wt901c_config
+  src/wt901c_config.cpp
+)
+target_compile_features(wt901c_config PUBLIC cxx_std_17)
+ament_target_dependencies(wt901c_config
+  serial
+)
+
+install(TARGETS
+  imu_driver
+  wt901c_config
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/
