@@ -38,8 +38,8 @@ private:
   void handle_frame(const protocol::Frame & frame);
   void reset_sample_cycle();
 
-  void update_orientation_from_euler(const protocol::Frame & frame);
-  void update_orientation_from_quaternion(const protocol::Frame & frame);
+  bool update_orientation_from_euler(const protocol::Frame & frame);
+  bool update_orientation_from_quaternion(const protocol::Frame & frame);
   void publish_imu_if_complete();
   void publish_temperature(const protocol::Frame & frame);
   void publish_magnetic_field(const protocol::Frame & frame);
