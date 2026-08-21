@@ -32,8 +32,8 @@ def generate_launch_description():
             DeclareLaunchArgument("frame_id", default_value="imu_link"),
             DeclareLaunchArgument("parent_frame", default_value="world"),
             driver_launch,
-            # Bench visualization only. Production robots should provide base_link -> imu_link
-            # from URDF or their own static transform instead of using this world frame.
+            # bench 시각화 전용이다. 실제 로봇에서는 URDF 또는 별도 static TF로
+            # base_link -> imu_link 장착 변환을 제공한다.
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
