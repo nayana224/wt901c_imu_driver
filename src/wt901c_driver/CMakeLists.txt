@@ -53,6 +53,11 @@ install(TARGETS
   wt901c_config
   DESTINATION lib/${PROJECT_NAME}
 )
+install(PROGRAMS
+  scripts/wt901c_config_gui.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME wt901c_config_gui
+)
 install(DIRECTORY include/
   DESTINATION include
 )
