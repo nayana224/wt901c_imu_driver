@@ -1,0 +1,25 @@
+imu_driver:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    baudrate: 115200
+    frame_id: imu_link
+
+    # Factory output normally includes 0x53 angle packets. Use "quaternion" only
+    # after enabling the WT901C 0x59 quaternion output in the device configuration.
+    orientation_source: angle
+    yaw_offset_rad: 0.0
+
+    poll_interval_ms: 2
+    serial_timeout_ms: 20
+    reconnect_interval_ms: 1000
+    calibration_duration_seconds: 5.0
+
+    # WT901C specification: about 0.0667 mGauss/LSB = 6.67e-9 Tesla/LSB.
+    magnetic_tesla_per_lsb: 6.67e-9
+    temperature_variance: 0.0
+
+    # Zero covariance means unknown. Replace these with measured variances for fusion.
+    linear_acceleration_covariance_diagonal: [0.0, 0.0, 0.0]
+    angular_velocity_covariance_diagonal: [0.0, 0.0, 0.0]
+    orientation_covariance_diagonal: [0.0, 0.0, 0.0]
+    magnetic_field_covariance_diagonal: [0.0, 0.0, 0.0]
